@@ -10,9 +10,11 @@ import backtest as twp
 from matplotlib import pyplot as plt
 from sklearn import metrics, preprocessing
 from talib.abstract import *
-from sklearn.externals import joblib
+# from sklearn.externals import joblib
+import joblib
 
-import Quandl
+
+import quandl
 
 '''
 Name:        The Self Learning Quant, Example 3
@@ -40,10 +42,10 @@ backtest.py from the TWP library. Download backtest.py and put in the same folde
 #Load data
 def read_convert_data(symbol='XBTEUR'):
     if symbol == 'XBTEUR':
-        prices = Quandl.get("BCHARTS/KRAKENEUR")
+        prices = quandl.get("BCHARTS/KRAKENEUR")
         prices.to_pickle('data/XBTEUR_1day.pkl') # a /data folder must exist
     if symbol == 'EURUSD_1day':
-        #prices = Quandl.get("ECB/EURUSD")
+        #prices = quandl.get("ECB/EURUSD")
         prices = pd.read_csv('data/EURUSD_1day.csv',sep=",", skiprows=0, header=0, index_col=0, parse_dates=True, names=['ticker', 'date', 'time', 'open', 'low', 'high', 'close'])
         prices.to_pickle('data/EURUSD_1day.pkl')
     print(prices)
