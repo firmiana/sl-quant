@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
+import time
+
 import numpy as np
 np.random.seed(1335)  # for reproducibility
 np.set_printoptions(precision=5, suppress=True, linewidth=150)
@@ -181,24 +183,38 @@ batch_size = 1
 num_features = 7
 
 model = Sequential()
-model.add(LSTM(64,
-               input_shape=(1, num_features),
-               return_sequences=True,
-               stateful=False))
-model.add(Dropout(0.5))
+model.add(Dense(4, kernel_initializer='lecun_uniform', input_shape=(num_features,)))
+model.add(Activation('relu'))
+#model.add(Dropout(0.2)) I'm not using dropout in this example
 
-model.add(LSTM(64,
-               input_shape=(1, num_features),
-               return_sequences=False,
-               stateful=False))
-model.add(Dropout(0.5))
+model.add(Dense(4, kernel_initializer='lecun_uniform'))
+model.add(Activation('relu'))
+#model.add(Dropout(0.2))
 
-model.add(Dense(4, init='lecun_uniform'))
+model.add(Dense(4, kernel_initializer='lecun_uniform'))
 model.add(Activation('linear')) #linear output so we can have range of real-valued outputs
 
 rms = RMSprop()
-adam = Adam()
-model.compile(loss='mse', optimizer=adam)
+model.compile(loss='mse', optimizer=rms)
+# model = Sequential()
+# model.add(LSTM(64,
+#                input_shape=(1, num_features),
+#                return_sequences=True,
+#                stateful=False))
+# model.add(Dropout(0.5))
+#
+# model.add(LSTM(64,
+#                input_shape=(1, num_features),
+#                return_sequences=False,
+#                stateful=False))
+# model.add(Dropout(0.5))
+#
+# model.add(Dense(4, init='lecun_uniform'))
+# model.add(Activation('linear')) #linear output so we can have range of real-valued outputs
+#
+# rms = RMSprop()
+# adam = Adam()
+# model.compile(loss='mse', optimizer=adam)
 
 
 import random, timeit
@@ -220,6 +236,7 @@ h = 0
 #signal = pd.Series(index=market_data.index)
 signal = pd.Series(index=np.arange(len(indata)))
 for i in range(epochs):
+    print("epochs:", i)
     if i == epochs-1: #the last epoch, use test data set
         indata = load_data(test=True)
         state, xdata, price_data = init_state(indata, test=True)
@@ -276,8 +293,11 @@ for i in range(epochs):
 
             X_train = np.squeeze(np.array(X_train), axis=(1))
             y_train = np.array(y_train)
-            model.fit(X_train, y_train, batch_size=batchSize, nb_epoch=1, verbose=0)
-            
+            start = time.time()
+            model.fit(X_train, y_train, batch_size=batchSize, epochs=1, verbose=0)
+            end = time.time()
+            print("time cost for 1 fit", end-start)
+
             state = new_state
         if terminal_state == 1: #if reached terminal state, update epoch status
             status = 0
