@@ -44,7 +44,7 @@ def init_state(data):
     diff = np.insert(diff, 0, 0)
     
     #--- Preprocess data
-    xdata = np.column_stack((close, diff))
+    xdata = np.column_stack((close, diff/close))
     xdata = np.nan_to_num(xdata)
     scaler = preprocessing.StandardScaler()
     xdata = scaler.fit_transform(xdata)
@@ -152,6 +152,7 @@ start_time = timeit.default_timer()
 indata = load_data()
 epochs = 10
 gamma = 0.9 #a high gamma makes a long term reward more valuable
+alpha = 0.9
 epsilon = 1
 learning_progress = []
 #stores tuples of (S, A, R, S')
@@ -160,9 +161,12 @@ signal = pd.Series(index=np.arange(len(indata)))
 for i in range(epochs):
 
     state, xdata = init_state(indata)
+    print("state", state)
+    print("xdata", xdata[:5])
     status = 1
     terminal = False
     time_step = 1
+    update = 0
     #while learning is still in progress
     while not terminal:
         #We start in state S
@@ -182,7 +186,8 @@ for i in range(epochs):
         y = np.zeros((1,4))
         y[:] = qval[:]
         if not terminal: #non-terminal state
-            update = (reward + (gamma * maxQ))
+            # update = (reward + (gamma * maxQ))
+            update = (1-alpha) * update + alpha * (reward + (gamma * maxQ))
         else: #terminal state (means that it is the last state)
             update = reward
         y[0][action] = update #target output
