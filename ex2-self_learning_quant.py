@@ -44,7 +44,7 @@ def init_state(data):
     diff = np.insert(diff, 0, 0)
     
     #--- Preprocess data
-    xdata = np.column_stack((close, diff/close))
+    xdata = np.column_stack((close, diff/abs(close)))
     xdata = np.nan_to_num(xdata)
     scaler = preprocessing.StandardScaler()
     xdata = scaler.fit_transform(xdata)
@@ -186,7 +186,7 @@ for i in range(epochs):
         newQ = model.predict(new_state.reshape(1,2), batch_size=1)
         maxQ = np.max(newQ)
         y = np.zeros((1,4))
-        y[:] = qval[:]
+        # y[:] = qval[:]
         if terminal_state == 0: #non-terminal state
             update = (1-alpha) * update + alpha * (reward + (gamma * maxQ))
         else: #terminal state (means that it is the last state)
