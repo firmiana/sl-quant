@@ -22,6 +22,7 @@ from __future__ import print_function
 
 import numpy as np
 import pandas as pd
+import torch
 from matplotlib import pyplot as plt
 from sklearn import preprocessing
 
@@ -31,15 +32,15 @@ np.random.seed(1335)  # for reproducibility
 np.set_printoptions(precision=5, suppress=True, linewidth=150)
 
 
-
 # Load data
 # def load_data():
 #     price = np.arange(200 / 10.0)  # linearly increasing prices
 #     return price
 
 def load_data():
-    price = np.sin(np.arange(200)/30.0) #sine prices
+    price = np.sin(np.arange(200) / 30.0)  # sine prices
     return price
+
 
 # Initialize first state, all items are placed deterministically
 def init_state(data):
@@ -76,9 +77,9 @@ def take_action(state, xdata, action, signal, time_step):
     # move the market data window one step forward
     state = xdata[time_step - 1:time_step, :]
     # take action
-    if action < -0.03 :
+    if action < -0.01:
         signal.loc[time_step] = -100
-    elif action > 0.03:
+    elif action > 0.01:
         signal.loc[time_step] = 100
     else:
         signal.loc[time_step] = 0
@@ -101,15 +102,15 @@ def get_reward(new_state, time_step, action, xdata, signal, terminal_state, epoc
     signal.fillna(value=0, inplace=True)
     if not terminal_state:
         # get reward for the most current action
-        forwardsetep = min(time_step + 5, len(xdata)-1)
+        forwardsetep = min(time_step + 5, len(xdata) - 1)
         # print(f"forward_step{forwardsetep}, timestep{time_step}")
-        reward = (xdata[forwardsetep][0] - xdata[time_step][0])*action
+        reward = (xdata[forwardsetep][0] - xdata[time_step][0]) * action
         # if signal[time_step] != signal[time_step - 1]:
         #     i = 1
         #     while signal[time_step - i] == signal[time_step - 1 - i] and time_step - 1 - i > 0:
         #         i += 1
-            # reward = (xdata[time_step - 1, 0] - xdata[time_step - i - 1, 0]) * signal[
-            #     time_step - 1] * -100 + i * np.abs(signal[time_step - 1]) / 10.0
+        # reward = (xdata[time_step - 1, 0] - xdata[time_step - i - 1, 0]) * signal[
+        #     time_step - 1] * -100 + i * np.abs(signal[time_step - 1]) / 10.0
         # if signal[time_step] == 0 and signal[time_step - 1] == 0:
         #     reward -= 10
 
@@ -130,11 +131,13 @@ def evaluate_Q(eval_data, eval_model):
     # status = 1
     terminal_state = False
     time_step = 1
+    model.eval()
     while not terminal_state:
         # We start in state S
         # Run the Q function on S to get predicted reward values on all the possible actions
-        qval = eval_model.predict(state.reshape(1, 2), batch_size=1)
-        action = (np.argmax(qval))
+        # qval = eval_model.predict(state.reshape(1, 2), batch_size=1)
+        qval = model(torch.from_numpy(state.reshape(1, 2)).float())
+        action = (torch.argmax(qval))
         # Take action, observe new state S'
         new_state, time_step, signal, terminal_state = take_action(state, xdata, action, signal, time_step)
         # Observe reward
@@ -145,32 +148,71 @@ def evaluate_Q(eval_data, eval_model):
 
 # This neural network is the the Q-function, run it like this:
 # model.predict(state.reshape(1,64), batch_size=1)
+#
+# from keras.models import Sequential
+# from keras.layers.core import Dense, Activation
+# from keras.optimizers import RMSprop
 
-from keras.models import Sequential
-from keras.layers.core import Dense, Activation
-from keras.optimizers import RMSprop
+from torch import nn
 
-model = Sequential()
-model.add(Dense(4, kernel_initializer='lecun_uniform', input_shape=(2,)))
-model.add(Activation('relu'))
-# model.add(Dropout(0.2)) I'm not using dropout in this example
+class NeuralNetwork(nn.Module):
+    def __init__(self):
+        super(NeuralNetwork, self).__init__()
+        self.flatten = nn.Flatten()
+        self.linear_relu_stack = nn.Sequential(
+            nn.Linear(2, 4),
+            nn.ReLU(),
+            nn.Linear(4, 4),
+            nn.ReLU(),
+            nn.Linear(4, 1),
+            nn.Tanh()
+        )
 
-model.add(Dense(4, kernel_initializer='lecun_uniform'))
-model.add(Activation('relu'))
-# model.add(Dropout(0.2))
+    def forward(self, x):
+        x = self.flatten(x)
+        logits = self.linear_relu_stack(x)
+        return logits
 
-model.add(Dense(1, kernel_initializer='lecun_uniform'))
-model.add(Activation('linear'))  # linear output so we can have range of real-valued outputs
 
-rms = RMSprop()
-model.compile(loss='mse', optimizer=rms)
+model = NeuralNetwork()
+# criterion = nn.CrossEntropyLoss()
+# criterion = nn.SmoothL1Loss()
+criterion = nn.MSELoss(reduction='mean')
+optim = torch.optim.SGD(model.parameters(), 0.01)
+model.train()
+
+
+def train(data, target):
+    # 初始化时，要清空梯度
+    with torch.autograd.set_detect_anomaly(True):
+        optim.zero_grad()
+        output = model(data)
+        loss = criterion(output, target)
+        loss.backward(retain_graph=True)
+        optim.step()
+
+
+# model = Sequential()
+# model.add(Dense(4, kernel_initializer='lecun_uniform', input_shape=(2,)))
+# model.add(Activation('relu'))
+# # model.add(Dropout(0.2)) I'm not using dropout in this example
+#
+# model.add(Dense(4, kernel_initializer='lecun_uniform'))
+# model.add(Activation('relu'))
+# # model.add(Dropout(0.2))
+#
+# model.add(Dense(1, kernel_initializer='lecun_uniform'))
+# model.add(Activation('linear'))  # linear output so we can have range of real-valued outputs
+
+# rms = RMSprop()
+# model.compile(loss='mse', optimizer=rms)
 
 import random, timeit
 
 start_time = timeit.default_timer()
 
 indata = load_data()
-epochs = 10
+epochs = 100
 gamma = 0.9  # a high gamma makes a long term reward more valuable
 alpha = 0.9
 epsilon = 1
@@ -181,8 +223,8 @@ signal = pd.Series(index=np.arange(len(indata)))
 for i in range(epochs):
 
     state, xdata = init_state(indata)
-    print("state", state)
-    print("xdata", xdata[:5])
+    state = torch.from_numpy(state).float()
+    # print(f"i {i} xdata{xdata[:5]}")
     status = 1
     terminal = False
     time_step = 1
@@ -191,10 +233,13 @@ for i in range(epochs):
     while not terminal:
         # We start in state S
         # Run the Q function on S to get predicted reward values on all the possible actions
-        qval = model.predict(state.reshape(1, 2), batch_size=1)
+        # qval = model.predict(state.reshape(1, 2), batch_size=1)
+        # print(f"state in step", state)
+        qval = model(state)
+        print("qval", qval)
         if (random.random() < epsilon) and i != epochs - 1:  # maybe choose random action if not the last epoch
             # action = np.random.randint(0, 4)  # assumes 4 different actions
-            action = np.random.rand(1)
+            action = torch.rand(1)
         else:  # choose best action from Q(s,a) values
             action = qval
         # Take action, observe new state S'
@@ -204,16 +249,22 @@ for i in range(epochs):
         # Get max_Q(S',a)
         # newQ = model.predict(new_state.reshape(1, 2), batch_size=1)
         # maxQ = np.max(newQ)
-        y = np.zeros((1, 1))
-        y[:] = qval[:]
+        # y = torch.zeros((1))
+        # y[:] = qval[:]
+        # y = torch.from_numpy(qval)
+        # y = qval
         if not terminal:  # non-terminal state
             # update = (reward + (gamma * maxQ))
             update = (1 - alpha) * update + alpha * (reward + (gamma * 0))
         else:  # terminal state (means that it is the last state)
-            update = reward
-        y[0][0] = update  # target output
-        model.fit(state.reshape(1, 2), y, batch_size=1, epochs=1, verbose=0)
-        state = new_state
+            update = torch.tensor(reward).float()
+        # y[0] = update  # target output
+        # y[:] = update
+        # print("update", update)
+        # model.fit(state.reshape(1, 2), y, batch_size=1, epochs=1, verbose=0)
+        train(state, update.reshape(1, 1).detach())
+        # state = torch.tensor(new_state).float()
+        state = torch.from_numpy(new_state).float().detach()
     eval_reward = evaluate_Q(indata, model)
     print("Epoch #: %s Reward: %f Epsilon: %f" % (i, eval_reward, epsilon))
     learning_progress.append((eval_reward))
