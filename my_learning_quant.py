@@ -213,7 +213,7 @@ import random, timeit
 start_time = timeit.default_timer()
 
 indata = load_data()
-epochs = 20
+epochs = 10
 gamma = 0.9  # a high gamma makes a long term reward more valuable
 alpha = 0.9
 epsilon = 1
@@ -248,13 +248,6 @@ for i in range(epochs):
         reward = get_reward(new_state, time_step, action, xdata, signal, terminal, i)
         # print(f"state{state}, qval{qval.data}, action{action}, reward{reward}")
         print(f"state{state}, action{action}, reward{reward}")
-        # Get max_Q(S',a)
-        # newQ = model.predict(new_state.reshape(1, 2), batch_size=1)
-        # maxQ = np.max(newQ)
-        # y = torch.zeros((1))
-        # y[:] = qval[:]
-        # y = torch.from_numpy(qval)
-        # y = qval
         if not terminal:  # non-terminal state
             # update = (reward + (gamma * maxQ))
             # update = (1 - alpha) * update + alpha * (reward + (gamma * 0))

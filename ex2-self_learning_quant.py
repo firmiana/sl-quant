@@ -127,9 +127,9 @@ def evaluate_Q(eval_data, eval_model):
 #This neural network is the the Q-function, run it like this:
 #model.predict(state.reshape(1,64), batch_size=1)
 
-from keras.models import Sequential
-from keras.layers.core import Dense, Dropout, Activation
-from keras.optimizers import RMSprop
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout, Activation
+from tensorflow.keras.optimizers import RMSprop
 
 model = Sequential()
 model.add(Dense(4, kernel_initializer='lecun_uniform', input_shape=(2,)))
