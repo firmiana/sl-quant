@@ -50,7 +50,7 @@ def init_state(data):
     diff = np.insert(diff, 0, 0)
 
     # --- Preprocess data
-    xdata = np.column_stack((close, diff / close))
+    xdata = np.column_stack((close, diff / abs(close)))
     xdata = np.nan_to_num(xdata)
     scaler = preprocessing.StandardScaler()
     xdata = scaler.fit_transform(xdata)
@@ -77,12 +77,12 @@ def take_action(state, xdata, action, signal, time_step):
     # move the market data window one step forward
     state = xdata[time_step - 1:time_step, :]
     # take action
-    if action < -0.01:
-        signal.loc[time_step] = -100
-    elif action > 0.01:
-        signal.loc[time_step] = 100
+    if action < -0.05:
+        signal.loc[time_step] = 100.0 * action.item()
+    elif action > 0.05:
+        signal.loc[time_step] = 100.0 * action.item()
     else:
-        signal.loc[time_step] = 0
+        signal.loc[time_step] = 0.0
 
     # if action != 0:
     #     if action == 1:
@@ -104,7 +104,7 @@ def get_reward(new_state, time_step, action, xdata, signal, terminal_state, epoc
         # get reward for the most current action
         forwardsetep = min(time_step + 5, len(xdata) - 1)
         # print(f"forward_step{forwardsetep}, timestep{time_step}")
-        reward = (xdata[forwardsetep][0] - xdata[time_step][0]) * action
+        reward = (xdata[forwardsetep][0] - xdata[time_step][0]) * action*10
         # if signal[time_step] != signal[time_step - 1]:
         #     i = 1
         #     while signal[time_step - i] == signal[time_step - 1 - i] and time_step - 1 - i > 0:
@@ -137,7 +137,8 @@ def evaluate_Q(eval_data, eval_model):
         # Run the Q function on S to get predicted reward values on all the possible actions
         # qval = eval_model.predict(state.reshape(1, 2), batch_size=1)
         qval = model(torch.from_numpy(state.reshape(1, 2)).float())
-        action = (torch.argmax(qval))
+        # action = (torch.argmax(qval))
+        action = qval
         # Take action, observe new state S'
         new_state, time_step, signal, terminal_state = take_action(state, xdata, action, signal, time_step)
         # Observe reward
@@ -178,7 +179,7 @@ model = NeuralNetwork()
 # criterion = nn.CrossEntropyLoss()
 # criterion = nn.SmoothL1Loss()
 criterion = nn.MSELoss(reduction='mean')
-optim = torch.optim.SGD(model.parameters(), 0.01)
+optim = torch.optim.SGD(model.parameters(), 0.005)
 model.train()
 
 
@@ -212,7 +213,7 @@ import random, timeit
 start_time = timeit.default_timer()
 
 indata = load_data()
-epochs = 100
+epochs = 20
 gamma = 0.9  # a high gamma makes a long term reward more valuable
 alpha = 0.9
 epsilon = 1
@@ -236,16 +237,17 @@ for i in range(epochs):
         # qval = model.predict(state.reshape(1, 2), batch_size=1)
         # print(f"state in step", state)
         qval = model(state)
-        print("qval", qval)
         if (random.random() < epsilon) and i != epochs - 1:  # maybe choose random action if not the last epoch
             # action = np.random.randint(0, 4)  # assumes 4 different actions
-            action = torch.rand(1)
+            action = torch.rand(1)*2 - 1
         else:  # choose best action from Q(s,a) values
             action = qval
         # Take action, observe new state S'
         new_state, time_step, signal, terminal = take_action(state, xdata, action, signal, time_step)
         # Observe reward
         reward = get_reward(new_state, time_step, action, xdata, signal, terminal, i)
+        # print(f"state{state}, qval{qval.data}, action{action}, reward{reward}")
+        print(f"state{state}, action{action}, reward{reward}")
         # Get max_Q(S',a)
         # newQ = model.predict(new_state.reshape(1, 2), batch_size=1)
         # maxQ = np.max(newQ)
@@ -255,14 +257,17 @@ for i in range(epochs):
         # y = qval
         if not terminal:  # non-terminal state
             # update = (reward + (gamma * maxQ))
-            update = (1 - alpha) * update + alpha * (reward + (gamma * 0))
+            # update = (1 - alpha) * update + alpha * (reward + (gamma * 0))
+            update = reward
         else:  # terminal state (means that it is the last state)
             update = torch.tensor(reward).float()
         # y[0] = update  # target output
         # y[:] = update
         # print("update", update)
         # model.fit(state.reshape(1, 2), y, batch_size=1, epochs=1, verbose=0)
-        train(state, update.reshape(1, 1).detach())
+        # train(state, update.reshape(1, 1).detach())
+        # train(state, action.reshape(1, 1).detach())
+        train(state, state[0][1].detach())
         # state = torch.tensor(new_state).float()
         state = torch.from_numpy(new_state).float().detach()
     eval_reward = evaluate_Q(indata, model)
